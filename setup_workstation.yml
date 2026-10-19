@@ -1,0 +1,54 @@
+---
+- name: Configure my SRE Workstation
+  hosts: localhost
+  connection: local
+  become: true
+
+  vars:
+    # We can change this one value to update the whole script
+    project_folder: "SRE_Portfolio_v2"
+    required_packages:
+      - htop
+      - git
+      - tree
+      - nmap  # Adding a networking tool for SRE work
+
+  tasks:
+    - name: Install required SRE tools
+      dnf:
+        name: "{{ required_packages }}"
+        state: present
+
+    - name: Create project directory
+      file:
+        path: "/mnt/AI_Workspace/{{ project_folder }}"
+        state: directory
+        mode: '0755'
+  
+    - name: Generate the System Status Report
+      template:
+        src: status_report.j2
+        dest: "/mnt/AI_Workspace/{{ project_folder }}/status_report.txt"
+        mode: '0644'
+
+    - name: Deploy the Log Parser script
+      copy:
+        src: log_parser.py
+        dest: "/mnt/AI_Workspace/{{ project_folder }}/log_parser.py"
+        mode: '0755'
+        owner: trentdouthat  # Specifically set the owner
+        group: trentdouthat
+
+    - name: Schedule the Log Parser to run every hour
+      cron:
+        name: "Hourly System Log Scan"
+        user: trentdouthat   # Specifically target your user's crontab
+        minute: "0"
+        hour: "*"
+        job: "python3 /mnt/AI_Workspace/{{ project_folder }}/log_parser.py >> /mnt/AI_Workspace/{{ project_folder }}/scan_history.log"
+
+    - name: Deploy logrotate configuration
+      template:
+        src: logrotate_config.j2
+        dest: "/etc/logrotate.d/{{ project_folder | lower }}"
+        mode: '0644'
